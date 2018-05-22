@@ -3,6 +3,7 @@ function randomInteger(min, max) {
     rand = Math.round(rand);
     return rand;
 }
+
 function randomColor() {
     var letters = '0123456789ABCDEF';
     var color = '#';
@@ -11,10 +12,13 @@ function randomColor() {
     }
     return color;
 }
+
 function onClick(e) {
     const point = getCanvasCursorPosition(e);
     console.log(point);
+    return point;
 }
+
 function getCanvasCursorPosition(e) {
     let x, y;
     if (typeof e.offsetX !== 'undefined' && typeof e.offsetY !== 'undefined') {
@@ -24,18 +28,21 @@ function getCanvasCursorPosition(e) {
     let canvas = e.path[0];
     x -= canvas.offsetLeft;
     y -= canvas.offsetTop;
-    return [x,y];
+    return [x, y];
 }
-function clearRect (canvasObj = document.querySelector('#canvasId'), width, height){
+
+function clearRect(canvasObj = document.querySelector('#canvasId'), width, height) {
     const canvas = canvasObj.getContext('2d');
-    canvas.clearRect(0,0,width,height);
+    canvas.clearRect(0, 0, width, height);
 }
-function clearAll (canvasObj = document.querySelector('#canvasId')){
+
+function clearAll(canvasObj = document.querySelector('#canvasId')) {
     const canvas = canvasObj.getContext('2d');
     let width = canvasObj.offsetWidth;
     let height = canvasObj.offsetHeight;
-    canvas.clearRect(0,0,width,height);
+    canvas.clearRect(0, 0, width, height);
 }
+
 function animate() {
     var canvas = document.getElementById('canvas');
     var ctx = canvas.getContext('2d');
@@ -48,21 +55,23 @@ function animate() {
     }
     requestAnimationFrame(animate);
 }
-function createApp () {
-    function gameElement (x, y, width, height, name, color) {
+
+function createApp() {
+    function gameElement(x, y, width, height, name, color, speed) {
         this.x = x;
         this.y = y;
         this.width = width;
         this.height = height;
         this._name = name;
         this._color = color;
+        this._speed = speed;
         
         return this;
     }
     
     gameElement.prototype = {
         constructor: gameElement,
-        make: function (x, y, width, height, name) {
+        make: function () {
             return this.constructor.apply(this, arguments);
         },
         isHavePoint: function (x, y) {
@@ -81,7 +90,7 @@ function createApp () {
         resize: function (width, height) {
             this.width = width;
             this.height = height;
-    
+            
             return this;
         }
     };
@@ -119,11 +128,13 @@ function createApp () {
         height: 0,
         canvWidth: 0,
         canvHeight: 0,
+        elemWidth: 30,
+        elemHeight: 30,
         elems: {
             collection: [],
             get: function (name) {
                 let elem;
-                this.collection.map((el)=>{
+                this.collection.map((el) => {
                     if (el._name === name) {
                         elem = el;
                     }
@@ -146,6 +157,8 @@ function createApp () {
             app.props.height = parseInt(app.container.offsetHeight);
             
             app.canvas.setAttribute('style', 'height: ' + app.props.canvHeight + 'px;');
+            app.canvas.setAttribute('height', app.props.canvHeight);
+            app.canvas.setAttribute('width', app.props.canvWidth);
         },
         setListener: function (event, elem, handler) {
             app.props.events.push([handler.name, event, handler]);
@@ -162,44 +175,64 @@ function createApp () {
                 }
             });
         },
-        makeGameElem: function (x, y, width, height, number) {
-            let elem = new gameElement(x, y, width, height, number, randomColor());
+        makeGameElem: function () {
+            let name = app.props.elems.collection.length;
+            let elem = new gameElement(
+                randomInteger(0, app.props.width - app.props.elemWidth),
+                randomInteger(-app.props.height, -app.props.elemHeight),
+                app.props.elemWidth,
+                app.props.elemHeight,
+                name,
+                randomColor(),
+                randomInteger(5, 20) / 10);
             app.props.elems.collection.push(elem);
         },
-        destroyGameElem: function (number) {
-            app.props.elems.collection.map((elem, index)=>{
-                if (elem._name === number) {
+        destroyGameElem: function (gameElem) {
+            app.props.elems.collection.map((elem, index) => {
+                if (elem._name === gameElem._name) {
                     app.props.elems.collection.splice(index, 1);
                 }
                 else {
-                    console.warn(`Destroy failed, elem ${number} is undefined!`);
+                    console.warn(`Destroy failed, elem is undefined!`);
                 }
             });
         },
         destroyGameElems: function () {
+            app.props.isAllowIteration = false;
+            delete app.props.elems.collection;
             app.props.elems.collection = [];
         },
         drawElems: function (isRedraw) {
             isRedraw && clearAll();
             const ctx = app.context;
-            app.props.elems.collection.map((elem)=>{
+            app.props.elems.collection.map((elem) => {
                 ctx.fillStyle = elem._color;
                 ctx.fillRect(elem.x, elem.y, elem.width, elem.height);
             });
         },
         gameIteration: function () {
             app.methods.drawElems(true);
-            let el = app.props.elems.get(0);
-            app.props.elems.get(0).move(0, 1);
-            if (el.y >= app.canvas.height) {
-                app.methods.destroyGameElems();
-                app.methods.makeGameElem(randomInteger(0, 100), 0, 3, 3, 0);
-            }
-            requestAnimationFrame(app.methods.gameIteration);
+            app.props.elems.collection.map((gameElem) => {
+                let el = gameElem;
+                el.move(0, el._speed);
+                if (el.y >= app.canvas.height) {
+                    el.y = -app.props.elemHeight;
+                    el.x = randomInteger(0, app.props.width - app.props.elemWidth);
+                    el._color = randomColor();
+                    el._speed = el._speed + randomInteger(0, 5) / 10 ;
+    
+                    app.methods.makeGameElem();
+                }
+            });
+            app.props.isAllowIteration && requestAnimationFrame(app.methods.gameIteration);
         },
         startGame: function () {
-            app.methods.makeGameElem(5, 0, 3, 3, 0);
-            requestAnimationFrame(app.methods.gameIteration);
+            app.methods.destroyGameElems();
+            for (let i = 0; i < 5; i++) {
+                app.methods.makeGameElem();
+            }
+            app.props.isAllowIteration = true;
+            app.methods.gameIteration();
         }
     };
     
@@ -208,6 +241,7 @@ function createApp () {
     
     app.setLogic = (function () {
         app.methods.setListener('click', app.canvas, onClick);
+        app.methods.setListener('click', app.button, app.methods.startGame);
     })();
 }
 
